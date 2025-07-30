@@ -5694,16 +5694,16 @@ string county, IMemoryCache dataCache
         {
             try
             {
-                string from = "allan.odwar@kalro.org";
-                string username = "allan.odwar@kalro.org";
-                string password = "";
-                string[] tos = new string[] {
-                    "allan.odwar@kalro.org",
-                    "Kevin.Okombo@kalro.org",
-                    "fndegwamsg@gmail.com",
-                    "simon.mulwa@kalro.org",
-                    "salim.kinyimu@kalro.org"
-                };
+                var credentials = new CredentialsManager.Supplier("Credentials.json");
+                string from = credentials.GetSecret("AppSettings:AlertSenderEmailAddress");//Put email address
+                string username = credentials.GetSecret("AppSettings:AlertSenderEmailAddress");//Put sender email address
+                string password = credentials.GetSecret("AppSettings:AlertSenderEmailPassword");
+
+                var tos = credentials.GetSecret("AppSettings:AlertEmailRecepients").Split(",");
+
+                //                string[] tos = new string[] {
+                ////Put list of emails
+                //                };
 
                 foreach (var to in tos)
                 {
