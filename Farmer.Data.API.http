@@ -1,0 +1,6 @@
+@Farmer.Data.API_HostAddress = http://localhost:5244
+
+GET {{Farmer.Data.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
