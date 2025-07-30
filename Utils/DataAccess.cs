@@ -5757,8 +5757,12 @@ string county, IMemoryCache dataCache
             try
             {
                 var client = new HttpClient();
-                var request = new HttpRequestMessage(HttpMethod.Get, $"https://agripreneur.kalro.org/apitest/kyf/farmers_bio_new/?county={county}&page=1&page_size={99999999}");
-                request.Headers.Add("Authorization", "Token 9cf819bee213c2e2c4142d309539fb4fe840a361");
+
+                var credentials = new CredentialsManager.Supplier("Credentials.json");
+
+                var request = new HttpRequestMessage(HttpMethod.Get, $"{credentials.GetSecret("APIKeys:KYFFarmerBioUrl")}county={county}&subcounty={subcounty}&ward={ward}&page=1&page_size={99999999}");
+                request.Headers.Add("Authorization", $"Token {credentials.GetSecret("APIKeys:KYFFarmerBio")}");
+
                 var response = await client.SendAsync(request);
                 response.EnsureSuccessStatusCode();
 
