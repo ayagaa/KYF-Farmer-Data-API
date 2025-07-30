@@ -5760,7 +5760,7 @@ string county, IMemoryCache dataCache
 
                 var credentials = new CredentialsManager.Supplier("Credentials.json");
 
-                var request = new HttpRequestMessage(HttpMethod.Get, $"{credentials.GetSecret("APIKeys:KYFFarmerBioUrl")}county={county}&subcounty={subcounty}&ward={ward}&page=1&page_size={99999999}");
+                var request = new HttpRequestMessage(HttpMethod.Get, $"{credentials.GetSecret("APIKeys:KYFFarmerBioUrl")}county={county}&page=1&page_size={99999999}");
                 request.Headers.Add("Authorization", $"Token {credentials.GetSecret("APIKeys:KYFFarmerBio")}");
 
                 var response = await client.SendAsync(request);
