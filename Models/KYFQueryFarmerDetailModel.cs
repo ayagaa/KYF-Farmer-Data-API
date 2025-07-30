@@ -110,6 +110,26 @@ namespace Farmer.Data.API.Models
         public bool IsLatest;
     }
 
+    public class FarmerIdQuery
+    {
+
+        [JsonProperty("query")]
+        public string Identifier { get; set; }
+    }
+
+    public class FarmerBioDataModel
+    {
+        [JsonProperty("status", NullValueHandling = NullValueHandling.Ignore)]
+        public int Status { get; set; }
+
+        [JsonProperty("data", NullValueHandling = NullValueHandling.Ignore)]
+        public List<FarmerBioModel> Data { get; set; }
+
+        [JsonProperty("message", NullValueHandling = NullValueHandling.Ignore)]
+        public string Message { get; set; }
+    }
+
+
     public class FarmersBioModel
     {
         [JsonProperty("count")]

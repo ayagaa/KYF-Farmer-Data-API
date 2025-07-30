@@ -2662,6 +2662,235 @@
             return rawResultsBag.ToList();
         }
 
+        public static async Task<List<KYFFarmerDetailModel>> GetKYFWardFarmerDetails(
+    string id
+)
+        {
+            var rawResultsBag = new ConcurrentBag<KYFFarmerDetailModel>();
+            try
+            {
+                var collection = KYFDataCollection();
+
+                var farmerBios = await GetFarmersBio(id);
+
+                if (farmerBios.Data != null && farmerBios.Data != null && farmerBios.Data.Any())
+                {
+                    var farmerRecord = farmerBios.Data.FirstOrDefault();
+
+                    #region Process query for single Id
+
+
+                    var filters = new List<FilterDefinition<BsonDocument>>();
+
+                    // try ObjectId branch
+                    if (ObjectId.TryParse(farmerRecord.MongoId, out var oid))
+                        filters.Add(Builders<BsonDocument>.Filter.Eq("_id", oid));
+
+                    // always include string branch
+                    filters.Add(Builders<BsonDocument>.Filter.Eq("_id", farmerRecord.MongoId));
+
+
+                    var filter = Builders<BsonDocument>.Filter.Or(filters);
+
+
+                    var args = new RenderArgs<BsonDocument>(
+collection.DocumentSerializer,                        // IBsonSerializer<BsonDocument>
+BsonSerializer.SerializerRegistry     // IBsonSerializerRegistry
+);
+                    var options = new FindOptions<BsonDocument>
+                    {
+                        NoCursorTimeout = true
+                    };
+
+                    #region Processing
+                    using (var cursor = collection.FindAsync(filter, options).GetAwaiter().GetResult())
+                    {
+                        while (cursor.MoveNextAsync().GetAwaiter().GetResult())
+                        {
+                            if (cursor.Current != null && cursor.Current.Any())
+                            {
+                                var document = cursor.Current.FirstOrDefault();
+                                #region Cursor Processing
+                                var rawResult = new KYFFarmerDetailModel()
+                                {
+                                    County = farmerRecord.County,
+                                    Subcounty = farmerRecord.SubCounty,
+                                    Ward = farmerRecord.Ward,
+                                };
+                                try
+                                {
+                                    // Convert the document to a JSON string and parse into a JObject.
+                                    string jsonString = document.ToJson();
+                                    JObject jObject = JObject.Parse(jsonString);
+
+                                    // The JSON is expected to have a "data" array with multiple sections.
+                                    JArray sections = jObject["data"] as JArray;
+
+                                    rawResult.RegistrationStatus = jObject["registration_status"]
+                                        ?.ToString();
+
+                                    rawResult.FarmerStatus = jObject["farmer_status"]?.ToString();
+
+                                    if (sections != null)
+                                    {
+                                        // Extract administrative details from Section A.
+                                        JObject sectionA =
+                                            sections.FirstOrDefault(s =>
+                                                s["name"]?.ToString().Contains("Section A") == true
+                                            ) as JObject;
+
+                                        if (sectionA != null)
+                                        {
+                                            // Extract administrative details from Section A.
+                                            JArray contentA = sectionA["content"] as JArray;
+                                            if (contentA != null)
+                                            {
+                                                rawResult.RecordDate =
+                                                    contentA
+                                                        .FirstOrDefault(c =>
+                                                            c["label"]
+                                                                ?.ToString()
+                                                                .ToLower()
+                                                                .Contains("date") == true
+                                                        )
+                                                        ?["value"]?.ToString() ?? "";
+
+                                                try
+                                                {
+                                                    // Extract household GPS from the field with name "gps" and type "gps"
+                                                    JObject gpsField =
+                                                        contentA.FirstOrDefault(obj =>
+                                                            (string)obj["name"] == "gps"
+                                                            && (string)obj["type"] == "gps"
+                                                        ) as JObject;
+
+                                                    if (gpsField != null)
+                                                    {
+                                                        JObject coords =
+                                                            gpsField["value"]["coords"] as JObject;
+                                                        rawResult.Latitude = coords["latitude"]?.ToString();
+                                                        rawResult.Longitude = coords["longitude"]
+                                                            ?.ToString();
+
+                                                        //Console.WriteLine($"Coordinates =>\nLatitude: {latitude}\nLongitude: {longitude}");
+                                                    }
+                                                }
+                                                catch (Exception) { }
+                                            }
+                                        }
+
+                                        // Extract farmer personal details from Section B.
+                                        JObject sectionB =
+                                            sections.FirstOrDefault(s =>
+                                                s["name"]?.ToString().Contains("Section B") == true
+                                            ) as JObject;
+
+                                        string farmerName = "",
+                                            farmerId = "",
+                                            farmerPhone = "",
+                                            farmerGender = "";
+                                        if (sectionB != null)
+                                        {
+                                            JArray contentB = sectionB["content"] as JArray;
+                                            if (contentB != null)
+                                            {
+                                                rawResult.Name =
+                                                    contentB
+                                                        .FirstOrDefault(c =>
+                                                            c["q_code"]?.ToString() == "B02"
+                                                        )
+                                                        ?["value"]?.ToString() ?? "";
+                                                rawResult.NationalID =
+                                                    contentB
+                                                        .FirstOrDefault(c =>
+                                                            c["q_code"]?.ToString() == "B03"
+                                                        )
+                                                        ?["value"]?.ToString() ?? "";
+                                                rawResult.MobileNumber =
+                                                    contentB
+                                                        .FirstOrDefault(c =>
+                                                            c["q_code"]?.ToString() == "B04"
+                                                        )
+                                                        ?["value"]?.ToString() ?? "";
+                                                rawResult.Sex =
+                                                    contentB
+                                                        .FirstOrDefault(c =>
+                                                            c["q_code"]?.ToString() == "B05"
+                                                        )
+                                                        ?["value"]?.ToString() ?? "";
+
+                                                rawResult.YOB =
+                                                    sectionB["content"]
+                                                        .FirstOrDefault(obj =>
+                                                            (string)obj["name"] == "farmer_yob"
+                                                        )
+                                                        ?["value"]?.ToString() ?? "";
+                                            }
+                                        }
+
+                                        // Extract parcel details from Section C.
+                                        JObject sectionC =
+                                            sections.FirstOrDefault(s =>
+                                                s["name"]?.ToString().Contains("Section C") == true
+                                            ) as JObject;
+
+                                        if (sectionC != null)
+                                        {
+                                            JArray parcels = sectionC["parcels"] as JArray;
+                                            if (parcels != null && parcels.Any())
+                                            {
+                                                var cropsData = ProcessCropsData(parcels);
+
+                                                if (cropsData.Crops.Any() && cropsData.Parcels.Any())
+                                                {
+                                                    rawResult.Crops.AddRange(cropsData.Crops);
+                                                    rawResult.Parcels.AddRange(cropsData.Parcels);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if (rawResult.Crops != null && rawResult.Crops.Any())
+                                    {
+                                        //Console.WriteLine("Here!!!55555");
+                                        rawResultsBag.Add(rawResult);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"Error processing document: {ex.Message}");
+                                }
+                                break;
+                                #endregion
+                            }
+                            else
+                            {
+
+                                var rendered = filter.Render(
+args
+)
+.ToJson(new MongoDB.Bson.IO.JsonWriterSettings { Indent = true });
+                                //Console.WriteLine("Query filter:\n" + rendered);
+
+                            }
+                        }
+                    }
+                    #endregion
+
+                    #endregion
+                }
+
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    $"Error fetching and processing farmer data: {ex.Message}\nStack Trace: {ex.StackTrace}"
+                );
+            }
+
+            return rawResultsBag.ToList();
+        }
 
         #region Old County Extract
         //        public static async Task<List<KYFAPExtractModel>> GetKYFCountyFarmerDetails(
@@ -5395,6 +5624,39 @@ string county, IMemoryCache dataCache
                 var rawFarmers = await response.Content.ReadAsStringAsync();
 
                 farmers = Newtonsoft.Json.JsonConvert.DeserializeObject<FarmersBioModel>(rawFarmers);
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching biodata and deserializing: {ex.Message}\n{ex.StackTrace}");
+            }
+            return farmers;
+        }
+
+        private static async Task<FarmerBioDataModel> GetFarmersBio(string id)
+        {
+            var farmers = new FarmerBioDataModel();
+            try
+            {
+                var credentials = new CredentialsManager.Supplier("Credentials.json");
+                var client = new HttpClient()
+                {
+                    Timeout = TimeSpan.FromMinutes(60)
+                };
+                var request = new HttpRequestMessage(HttpMethod.Post, $"{credentials.GetSecret("APIKeys:KYFFarmerSearch")}");
+                request.Headers.Add("Authorization", $"Token {credentials.GetSecret("APIKeys:KYFFarmerBio")}");
+                var identifier = new FarmerIdQuery();
+                identifier.Identifier = id;
+
+                var content = new StringContent($"{Newtonsoft.Json.JsonConvert.SerializeObject(identifier)}", null, "application/json");
+                request.Content = content;
+
+                var response = await client.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+
+                var rawFarmers = await response.Content.ReadAsStringAsync();
+
+                farmers = Newtonsoft.Json.JsonConvert.DeserializeObject<FarmerBioDataModel>(rawFarmers);
 
             }
             catch (Exception ex)

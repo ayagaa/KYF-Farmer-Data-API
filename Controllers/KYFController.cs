@@ -255,5 +255,48 @@ namespace Farmer.Data.API.Controllers
             }
             return BadRequest("The request made was contrary to API documentation. Please review the documentation and implement accordingly.");
         }
+
+
+        [HttpGet("farmer/search/{id}")]
+        public async Task<IActionResult> GetFarmer(string id)
+        {
+            var authToken = AuthenticationHeaderValue.Parse(Request.Headers["Authorization"]).Parameter;
+            if (IsAuthorized(authToken))
+            {
+                var dataKey = id.GetHashCode();
+                var data = new List<KYFFarmerDetailModel>();
+                if (KYFFarmerDataCache.KyfFarmerMemoryCache.TryGetValue(dataKey, out data))
+                {
+                    if (data != null && data.Any())
+                    {
+                        var result = data.Where(d => (d.NationalID == id || d.MobileNumber == id))?.ToList();
+
+                        if (result != null && result.Any())
+                            return Ok(result);
+                        else return NotFound($"The farmer of Id/Phone Number: {id} was not found.");
+                    }
+                }
+                else
+                {
+                    data = await DataAccess.GetKYFWardFarmerDetails(id);
+
+                    if (data != null && data.Any())
+                    {
+                        KYFFarmerDataCache.KyfFarmerMemoryCache.Set(dataKey, data);
+
+                        var result = data.Where(d => d.NationalID == id)?.ToList();
+
+                        if (result != null && result.Any())
+                            return Ok(result);
+                        else return NotFound($"The farmer of Id/Phone Number: {id} was not found");
+                    }
+                }
+            }
+            else
+            {
+                return BadRequest("The token provided is not authorized");
+            }
+            return BadRequest("The request made was contrary to API documentation. Please review the documentation and implement accordingly.");
+        }
     }
 }
