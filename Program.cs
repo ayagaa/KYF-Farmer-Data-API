@@ -16,8 +16,9 @@ builder.Services.AddSingleton<IUriService>(o =>
 {
     var accessor = o.GetRequiredService<IHttpContextAccessor>();
     var request = accessor?.HttpContext?.Request;
+    var credentials = new CredentialsManager.Supplier("Credentials.json");
 
-    var uri = string.Concat(request?.Scheme, "://", request?.Host.ToUriComponent()).Replace("10.101.100.129", "farmerdb.kalro.org").Replace("http", "https");
+    var uri = string.Concat(request?.Scheme, "://", request?.Host.ToUriComponent()).Replace(credentials.GetSecret("AppSettings:KYFUrlIP"), credentials.GetSecret("AppSettings:farmerdb.kalro.org")).Replace("http", "https");
     return new UriService(uri);
 });
 
