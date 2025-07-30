@@ -284,7 +284,7 @@ namespace Farmer.Data.API.Controllers
                     {
                         KYFFarmerDataCache.KyfFarmerMemoryCache.Set(dataKey, data);
 
-                        var result = data.Where(d => d.NationalID == id)?.ToList();
+                        var result = data.Where(d => (d.NationalID == id || d.MobileNumber == id))?.ToList();
 
                         if (result != null && result.Any())
                             return Ok(result);
