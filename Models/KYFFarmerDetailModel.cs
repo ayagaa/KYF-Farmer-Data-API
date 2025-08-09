@@ -56,6 +56,9 @@ namespace Farmer.Data.API.Models
         [JsonProperty("livestock")]
         public List<KYFLivestockCountModel> Livestock { get; set; } = new List<KYFLivestockCountModel>();
 
+        [JsonProperty("aquaculture")]
+        public List<KYFAquacultureModel> Aquaculture { get; set; } = new List<KYFAquacultureModel>();
+
         [JsonProperty("parcels")]
         public List<ParcelModel> Parcels { get; set; } = new List<ParcelModel>();
 

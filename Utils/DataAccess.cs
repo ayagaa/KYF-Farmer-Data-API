@@ -2663,7 +2663,7 @@
         }
 
         public static async Task<List<KYFFarmerDetailModel>> GetKYFWardFarmerDetails(
-    string id
+    string id, FarmerBioDataModel inputFarmerBio = null
 )
         {
             var rawResultsBag = new ConcurrentBag<KYFFarmerDetailModel>();
@@ -2671,7 +2671,16 @@
             {
                 var collection = KYFDataCollection();
 
-                var farmerBios = await GetFarmersBio(id);
+                var farmerBios = new FarmerBioDataModel();
+
+                if (inputFarmerBio != null && inputFarmerBio.Data != null && inputFarmerBio.Data.Any())
+                {
+                    farmerBios = inputFarmerBio;
+                }
+                else
+                {
+                    farmerBios = await GetFarmersBio(id);
+                }
 
                 if (farmerBios.Data != null && farmerBios.Data != null && farmerBios.Data.Any())
                 {
@@ -2703,9 +2712,9 @@ BsonSerializer.SerializerRegistry     // IBsonSerializerRegistry
                     };
 
                     #region Processing
-                    using (var cursor = collection.FindAsync(filter, options).GetAwaiter().GetResult())
+                    using (var cursor = await collection.FindAsync(filter, options))
                     {
-                        while (cursor.MoveNextAsync().GetAwaiter().GetResult())
+                        while (await cursor.MoveNextAsync())
                         {
                             if (cursor.Current != null && cursor.Current.Any())
                             {
@@ -2848,13 +2857,66 @@ BsonSerializer.SerializerRegistry     // IBsonSerializerRegistry
                                                 }
                                             }
                                         }
+
+                                        #region Process Livestock data
+                                        JObject sectionF =
+                                                 sections.FirstOrDefault(s =>
+                                                        s["name"]?.ToString().Equals("Section F") == true
+                                                    ) as JObject;
+
+                                        if (sectionF != null)
+                                        {
+                                            JArray livestockContent = sectionF["content"] as JArray;
+
+                                            try
+                                            {
+                                                var livestockData = ProcessLivestockData(livestockContent, sections);
+                                                //Console.WriteLine($"Livestock count: {livestockData.Count}");
+                                                if (livestockData != null && livestockData.Any())
+                                                {
+                                                    rawResult.Livestock.AddRange(livestockData);
+                                                }
+                                                else
+                                                {
+                                                    //Console.WriteLine("No livestock");
+                                                }
+                                            }
+                                            catch (Exception ex)
+                                            {
+                                                //Console.WriteLine($"Error processing livestock data: {ex.Message}");
+                                            }
+
+                                        }
+                                        #endregion
+
+                                        #region Process Aquaculture
+                                        JObject sectionG =
+                                        sections.FirstOrDefault(s =>
+                                                s["name"]?.ToString().Equals("Section G") == true
+                                            ) as JObject;
+
+                                        if (sectionG != null)
+                                        {
+                                            JArray aquaContent = sectionG["content"] as JArray;
+                                            if (aquaContent != null && aquaContent.Any())
+                                            {
+                                                try
+                                                {
+                                                    var aquaData = ProcessAquacultureData(aquaContent, sectionG);
+
+                                                    if (aquaData != null && aquaData.Any())
+                                                        rawResult.Aquaculture.AddRange(aquaData);
+                                                }
+                                                catch (Exception)
+                                                {
+                                                }
+                                            }
+
+                                        }
+                                        #endregion
                                     }
 
-                                    if (rawResult.Crops != null && rawResult.Crops.Any())
-                                    {
-                                        //Console.WriteLine("Here!!!55555");
-                                        rawResultsBag.Add(rawResult);
-                                    }
+                                    rawResultsBag.Add(rawResult);
                                 }
                                 catch (Exception ex)
                                 {
@@ -5665,6 +5727,57 @@ string county, IMemoryCache dataCache
             }
             return farmers;
         }
+
+        public static bool HasFarmersBio(string id, out FarmerBioDataModel farmerBio)
+        {
+            farmerBio = new FarmerBioDataModel();
+            try
+            {
+                var credentials = new CredentialsManager.Supplier("Credentials.json");
+                var client = new HttpClient()
+                {
+                    Timeout = TimeSpan.FromMinutes(60)
+                };
+                var request = new HttpRequestMessage(HttpMethod.Post, $"{credentials.GetSecret("APIKeys:KYFFarmerSearch")}");
+                request.Headers.Add("Authorization", $"Token {credentials.GetSecret("APIKeys:KYFFarmerBio")}");
+                var identifier = new FarmerIdQuery();
+                identifier.Identifier = id;
+
+                var content = new StringContent($"{Newtonsoft.Json.JsonConvert.SerializeObject(identifier)}", null, "application/json");
+                request.Content = content;
+
+                var rawFarmers = string.Empty;
+                Task.Run(async () =>
+                {
+                    var response = await client.SendAsync(request);
+                    //response.EnsureSuccessStatusCode();
+                    if (response.IsSuccessStatusCode)
+                    {
+                        rawFarmers = await response.Content.ReadAsStringAsync();
+                    }
+                }).GetAwaiter().GetResult();
+                if (!string.IsNullOrEmpty(rawFarmers))
+                {
+                    try
+                    {
+                        farmerBio = Newtonsoft.Json.JsonConvert.DeserializeObject<FarmerBioDataModel>(rawFarmers);
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error fo id: {id}\r\n{ex.Message}");
+                    }
+                    return true;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching biodata and deserializing: {ex.Message}\n{ex.StackTrace}");
+            }
+            return false;
+        }
+
         public static async Task<DataTable> CropsDataFormatter(List<KYFAPExtractModel> kyfFarmerData)
         {
             using var resultTable = new DataTable();

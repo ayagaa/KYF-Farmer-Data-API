@@ -278,18 +278,23 @@ namespace Farmer.Data.API.Controllers
                 }
                 else
                 {
-                    data = await DataAccess.GetKYFWardFarmerDetails(id);
-
-                    if (data != null && data.Any())
+                    if (DataAccess.HasFarmersBio(id, out FarmerBioDataModel farmerBio))
                     {
-                        KYFFarmerDataCache.KyfFarmerMemoryCache.Set(dataKey, data);
+                        data = await DataAccess.GetKYFWardFarmerDetails(id, farmerBio);
 
-                        var result = data.Where(d => (d.NationalID == id || d.MobileNumber == id))?.ToList();
+                        if (data != null && data.Any())
+                        {
+                            KYFFarmerDataCache.KyfFarmerMemoryCache.Set(dataKey, data);
 
-                        if (result != null && result.Any())
-                            return Ok(result);
-                        else return NotFound($"The farmer of Id/Phone Number: {id} was not found");
+                            var result = data.Where(d => (d.NationalID == id || d.MobileNumber == id))?.ToList();
+
+                            if (result != null && result.Any())
+                                return Ok(result);
+                            else return NotFound($"The farmer of Id/Phone Number: {id} was not found");
+                        }
                     }
+                    else
+                        return NotFound($"The farmer of Id/Phone Number: {id} was not found");
                 }
             }
             else
